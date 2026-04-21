@@ -1,9 +1,9 @@
-FROM python:3.12-slim
+FROM python:3.14-slim
 
 # supercronic — drop-in cron for containers, no init system needed
 # Pin to a specific release for reproducibility
-ARG SUPERCRONIC_VERSION=0.2.29
-ARG SUPERCRONIC_SHA1=cd48d45c4b10f3f0bfdd3a57d054cd05ac96812b
+ARG SUPERCRONIC_VERSION=0.2.44
+ARG SUPERCRONIC_SHA1=6eb0a8e1e6673675dc67668c1a9b6409f79c37bc
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \

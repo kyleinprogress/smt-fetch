@@ -52,6 +52,19 @@ Required: `SMT_USERNAME`, `SMT_PASSWORD`, `SMT_ESIID`, `SMT_LATITUDE`, `SMT_LONG
 
 Optional: `SMT_OUTPUT_DIR` (default: `./data`), `SMT_DB_PATH` (default: `<output_dir>/smt_energy.db`), `SMT_DAYS_BACK` (default: `1`), `SMT_FORCE_REFETCH`, `SMT_LOG_LEVEL` (default: `INFO`), `SMT_DASH_PORT` (default: `8080`), `SMT_FREE_START` (default: `21`), `SMT_FREE_END` (default: `6`)
 
+## Development Workflow
+
+All changes must follow this process:
+
+1. **Create a GitHub issue** — describe the change, tag as `enhancement` or `bug`
+2. **Create a branch** — name it `<issue#>-short-description` (e.g. `12-fix-hourly-avg`)
+3. **Implement on the branch** — commit changes with messages referencing the issue (e.g. `Fix hourly avg calculation (#12)`)
+4. **Run tests** — run any applicable tests before submitting
+5. **Create a PR** — target `main`, reference the issue in the PR body (e.g. `Closes #12`), request review
+6. **Merge** — once approved, merge the PR (this triggers the CI build and pushes a new container image to GHCR)
+
+Never commit directly to `main`. All changes go through PRs.
+
 ## Key Design Details
 
 - The SMT API expects dates as `MM/DD/YYYY`; CSVs and SQLite use ISO format (`YYYY-MM-DD`).
