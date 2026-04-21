@@ -6,6 +6,7 @@ Usage:
     uv run python dashboard.py
 """
 
+import importlib.metadata
 import logging
 import os
 from pathlib import Path
@@ -51,8 +52,16 @@ def json_response(data):
 # Routes
 # ---------------------------------------------------------------------------
 
+def _get_version():
+    try:
+        return importlib.metadata.version("smt-fetch")
+    except importlib.metadata.PackageNotFoundError:
+        return "dev"
+
+
 async def index(request):
     html = (HERE / "dashboard.html").read_text()
+    html = html.replace("{{VERSION}}", f"v{_get_version()}")
     return web.Response(
         text=html,
         content_type="text/html",
