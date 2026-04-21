@@ -5,6 +5,8 @@ services:
     restart: unless-stopped
 
     environment:
+      PUID: ${PUID:-1000}
+      PGID: ${PGID:-1000}
       SMT_USERNAME: ${SMT_USERNAME}
       SMT_PASSWORD: ${SMT_PASSWORD}
       SMT_ESIID: ${SMT_ESIID}

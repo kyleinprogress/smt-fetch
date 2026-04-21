@@ -105,3 +105,34 @@ class TestDashboardEndpoints:
         assert resp.headers["Content-Type"] == "application/pdf"
         body = await resp.read()
         assert body[:4] == b'%PDF'
+
+    @pytest.mark.asyncio
+    async def test_intervals_invalid_date(self, client):
+        resp = await client.get("/api/intervals?date=not-a-date")
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_intervals_sql_injection(self, client):
+        resp = await client.get("/api/intervals?date='; DROP TABLE interval_usage;--")
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_daily_invalid_date(self, client):
+        resp = await client.get("/api/daily?from=bad&to=2026-03-07")
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_weather_hourly_invalid_date(self, client):
+        resp = await client.get("/api/weather/hourly?date=abc")
+        assert resp.status == 400
+
+    @pytest.mark.asyncio
+    async def test_report_rate_limited(self, client):
+        # First call should succeed (but previous test already called it)
+        # Force the cooldown by calling twice rapidly
+        import dashboard
+        dashboard._last_report_time = 0  # reset
+        resp1 = await client.get("/api/report")
+        assert resp1.status == 200
+        resp2 = await client.get("/api/report")
+        assert resp2.status == 429

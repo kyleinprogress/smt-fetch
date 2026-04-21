@@ -8,6 +8,7 @@ ARG SUPERCRONIC_SHA1=6eb0a8e1e6673675dc67668c1a9b6409f79c37bc
 RUN apt-get update && apt-get install -y --no-install-recommends \
         curl \
         libssl-dev \
+        gosu \
     && curl -fsSL \
         "https://github.com/aptible/supercronic/releases/download/v${SUPERCRONIC_VERSION}/supercronic-linux-amd64" \
         -o /usr/local/bin/supercronic \
