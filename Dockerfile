@@ -30,6 +30,8 @@ RUN chmod +x run.sh entrypoint.sh
 
 # /data is the persistent volume mount point
 # CSVs go to /data/csv, SQLite to /data/smt_energy.db, logs to /data/logs
+ARG APP_VERSION=dev
+ENV APP_VERSION=${APP_VERSION}
 ENV SMT_OUTPUT_DIR=/data/csv
 ENV SMT_DB_PATH=/data/smt_energy.db
 ENV PATH="/app/.venv/bin:$PATH"

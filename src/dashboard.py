@@ -53,6 +53,10 @@ def json_response(data):
 # ---------------------------------------------------------------------------
 
 def _get_version():
+    # Prefer APP_VERSION env var (set by Docker build arg from CI)
+    version = os.environ.get("APP_VERSION")
+    if version and version != "dev":
+        return version
     try:
         return importlib.metadata.version("smt-fetch")
     except importlib.metadata.PackageNotFoundError:
