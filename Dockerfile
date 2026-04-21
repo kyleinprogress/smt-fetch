@@ -15,11 +15,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && chmod +x /usr/local/bin/supercronic \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
+# Install uv for dependency management
+COPY --from=ghcr.io/astral-sh/uv:latest /uv /usr/local/bin/uv
+
 WORKDIR /app
 
 # Install Python deps first (better layer caching)
-COPY src/requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+COPY pyproject.toml uv.lock ./
+RUN uv sync --no-dev --no-install-project --frozen
 
 # Copy app files
 COPY src/ ./
@@ -29,6 +32,7 @@ RUN chmod +x run.sh entrypoint.sh
 # CSVs go to /data/csv, SQLite to /data/smt_energy.db, logs to /data/logs
 ENV SMT_OUTPUT_DIR=/data/csv
 ENV SMT_DB_PATH=/data/smt_energy.db
+ENV PATH="/app/.venv/bin:$PATH"
 
 VOLUME ["/data"]
 

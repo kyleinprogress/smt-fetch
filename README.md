@@ -34,20 +34,12 @@ data/
 
 ## Quick start (Docker)
 
-**Prep:** After adding or updating dependencies in `pyproject.toml`, regenerate
-the pinned `requirements.txt` used by the Docker build:
-
-```bash
-uv export --format requirements-txt --no-annotate --no-header --no-hashes --no-emit-project -o src/requirements.txt
-```
-
-**Build and run:**
-
 ```bash
 cp .env.example .env
 nano .env        # fill in SMT_USERNAME, SMT_PASSWORD, SMT_ESIID
 
-docker compose up --build
+docker compose pull
+docker compose up -d
 ```
 
 On first start the container runs `run.sh` immediately (fetch yesterday +
