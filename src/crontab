@@ -1,0 +1,6 @@
+# Run at 9:15 AM Central time every day
+# (Container runs UTC; Central is UTC-5 standard / UTC-6 daylight)
+# 9:15 AM CDT = 14:15 UTC  (summer)
+# 9:15 AM CST = 15:15 UTC  (winter)
+# Split the difference and run at 14:15 UTC — adjust if needed
+15 14 * * * /app/run.sh >> /data/logs/smt_cron.log 2>&1

@@ -1,0 +1,1384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>SMT Energy Dashboard</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-annotation"></script>
+    <style>
+        :root {
+            --bg: #f5f5f7;
+            --text: #1d1d1f;
+            --text-secondary: #6e6e73;
+            --card-bg: #ffffff;
+            --card-border: #d2d2d7;
+            --card-shadow: rgba(0, 0, 0, 0.06);
+            --chart-grid: rgba(0, 0, 0, 0.08);
+            --chart-text: #6e6e73;
+            --weekday-bar: #3b82f6;
+            --weekend-bar: #8b5cf6;
+            --free-window: rgba(34, 197, 94, 0.15);
+            --paid-window: rgba(245, 158, 11, 0.15);
+            --avg-line: #ef4444;
+            --p95-line: #dc2626;
+            --free-stack: #22c55e;
+            --paid-stack: #f59e0b;
+            --temp-line: #ef4444;
+            --cost-line: #10b981;
+            --tooltip-bg: rgba(255, 255, 255, 0.95);
+            --tooltip-text: #1d1d1f;
+            --tooltip-border: #d2d2d7;
+            --progress-bg: #e5e7eb;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            :root {
+                --bg: #1a1a2e;
+                --text: #e4e4e8;
+                --text-secondary: #9ca3af;
+                --card-bg: #16213e;
+                --card-border: #2a2a4a;
+                --card-shadow: rgba(0, 0, 0, 0.3);
+                --chart-grid: rgba(255, 255, 255, 0.08);
+                --chart-text: #9ca3af;
+                --weekday-bar: #60a5fa;
+                --weekend-bar: #a78bfa;
+                --free-window: rgba(34, 197, 94, 0.15);
+                --paid-window: rgba(245, 158, 11, 0.15);
+                --avg-line: #ef4444;
+                --p95-line: #dc2626;
+                --free-stack: #22c55e;
+                --paid-stack: #f59e0b;
+                --temp-line: #f87171;
+                --cost-line: #34d399;
+                --tooltip-bg: rgba(22, 33, 62, 0.95);
+                --tooltip-text: #e4e4e8;
+                --tooltip-border: #2a2a4a;
+                --progress-bg: #2a2a4a;
+            }
+        }
+
+        *, *::before, *::after {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            background: var(--bg);
+            color: var(--text);
+            line-height: 1.5;
+        }
+
+        .container {
+            max-width: 2400px;
+            margin: 0 auto;
+            padding: 2.5rem 3rem;
+        }
+
+        h1 {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 2rem;
+            letter-spacing: -0.02em;
+        }
+
+        /* Summary Cards */
+        .cards {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1.5rem;
+            margin-bottom: 3rem;
+        }
+
+        .card {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 1.75rem 2rem;
+            box-shadow: 0 1px 3px var(--card-shadow);
+        }
+
+        .card-label {
+            font-size: 0.875rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            color: var(--text-secondary);
+            margin-bottom: 0.5rem;
+        }
+
+        .card-value {
+            font-size: 2.25rem;
+            font-weight: 700;
+            letter-spacing: -0.02em;
+            line-height: 1.2;
+        }
+
+        .card-unit {
+            font-size: 1rem;
+            font-weight: 400;
+            color: var(--text-secondary);
+            margin-left: 0.25rem;
+        }
+
+        .card-subtitle {
+            font-size: 0.85rem;
+            color: var(--text-secondary);
+            margin-top: 0.5rem;
+        }
+
+        .progress-bar {
+            height: 6px;
+            background: var(--progress-bg);
+            border-radius: 3px;
+            margin-top: 0.75rem;
+            overflow: hidden;
+        }
+
+        .progress-fill {
+            height: 100%;
+            background: #3b82f6;
+            border-radius: 3px;
+            transition: width 0.6s ease;
+        }
+
+        /* Chart Sections */
+        .chart-section {
+            background: var(--card-bg);
+            border: 1px solid var(--card-border);
+            border-radius: 16px;
+            padding: 2rem 2.5rem;
+            margin-bottom: 2rem;
+            box-shadow: 0 1px 3px var(--card-shadow);
+        }
+
+        .chart-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .chart-header h2 {
+            margin-bottom: 0;
+        }
+
+        .chart-section h2 {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            letter-spacing: -0.01em;
+        }
+
+        .hourly-stats {
+            display: flex;
+            gap: 1.25rem;
+            margin-bottom: 1.25rem;
+        }
+
+        .hourly-stat {
+            display: flex;
+            align-items: baseline;
+            gap: 0.5rem;
+            padding: 0.6rem 1.25rem;
+            border-radius: 10px;
+            font-size: 0.875rem;
+        }
+
+        .hourly-stat.free {
+            background: var(--free-window);
+            border: 1px solid rgba(34, 197, 94, 0.3);
+        }
+
+        .hourly-stat.paid {
+            background: var(--paid-window);
+            border: 1px solid rgba(245, 158, 11, 0.3);
+        }
+
+        .hourly-stat-label {
+            font-weight: 600;
+            color: var(--text-secondary);
+        }
+
+        .hourly-stat-value {
+            font-size: 1.125rem;
+            font-weight: 700;
+        }
+
+        .month-select {
+            font-family: inherit;
+            font-size: 0.875rem;
+            font-weight: 500;
+            padding: 0.4rem 2rem 0.4rem 0.75rem;
+            border: 1px solid var(--card-border);
+            border-radius: 8px;
+            background: var(--card-bg);
+            color: var(--text);
+            cursor: pointer;
+            appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236e6e73' d='M2 4l4 4 4-4'/%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 0.6rem center;
+        }
+
+        .month-select:focus {
+            outline: 2px solid var(--weekday-bar);
+            outline-offset: 1px;
+        }
+
+        .chart-wrap {
+            position: relative;
+            height: 500px;
+        }
+
+        /* Day Detail */
+        #day-detail {
+            display: none;
+        }
+
+        #day-detail.visible {
+            display: block;
+        }
+
+        .detail-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1.5rem;
+        }
+
+        .detail-header h2 {
+            margin-bottom: 0;
+        }
+
+        .close-btn {
+            background: none;
+            border: 1px solid var(--card-border);
+            color: var(--text-secondary);
+            padding: 0.5rem 1.25rem;
+            border-radius: 8px;
+            cursor: pointer;
+            font-size: 0.875rem;
+            font-weight: 500;
+            transition: all 0.15s ease;
+        }
+
+        .close-btn:hover {
+            color: var(--text);
+            border-color: var(--text-secondary);
+        }
+
+        /* Loading state */
+        .loading-text {
+            color: var(--text-secondary);
+            font-style: italic;
+        }
+
+        /* Error state */
+        .error-banner {
+            background: #fef2f2;
+            border: 1px solid #fecaca;
+            color: #991b1b;
+            padding: 1rem 1.5rem;
+            border-radius: 12px;
+            margin-bottom: 2rem;
+            display: none;
+        }
+
+        @media (prefers-color-scheme: dark) {
+            .error-banner {
+                background: #450a0a;
+                border-color: #7f1d1d;
+                color: #fecaca;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:0.5rem;">
+            <h1 style="margin-bottom:0;">SMT Energy Dashboard</h1>
+            <a href="/api/report" class="close-btn" style="text-decoration:none; font-size:0.85rem; padding:0.4rem 1rem;">Download PDF Report</a>
+        </div>
+
+        <div id="error-banner" class="error-banner"></div>
+
+        <!-- Summary Cards -->
+        <div class="cards">
+            <div class="card">
+                <div class="card-label">Days Collected</div>
+                <div class="card-value" id="days-collected"><span class="loading-text">--</span></div>
+                <div class="card-subtitle" id="days-subtitle"></div>
+                <div class="progress-bar">
+                    <div class="progress-fill" id="days-progress" style="width: 0%"></div>
+                </div>
+            </div>
+            <div class="card">
+                <div class="card-label">Avg Daily Usage</div>
+                <div class="card-value" id="avg-daily"><span class="loading-text">--</span></div>
+                <div class="card-subtitle" id="avg-daily-subtitle"></div>
+            </div>
+            <div class="card">
+                <div class="card-label">Peak Daily Usage</div>
+                <div class="card-value" id="peak-daily"><span class="loading-text">--</span></div>
+                <div class="card-subtitle" id="peak-daily-subtitle"></div>
+            </div>
+            <div class="card">
+                <div class="card-label">Battery Size Needed</div>
+                <div class="card-value" id="battery-size"><span class="loading-text">--</span></div>
+                <div class="card-subtitle">P95 Paid Window</div>
+            </div>
+            <div class="card">
+                <div class="card-label">Avg Daily Cost</div>
+                <div class="card-value" id="avg-cost"><span class="loading-text">--</span></div>
+                <div class="card-subtitle" id="avg-cost-subtitle"></div>
+            </div>
+            <div class="card">
+                <div class="card-label">Total Cost</div>
+                <div class="card-value" id="total-cost"><span class="loading-text">--</span></div>
+                <div class="card-subtitle" id="total-cost-subtitle"></div>
+            </div>
+        </div>
+
+        <!-- Daily Consumption Trend -->
+        <div class="chart-section">
+            <div class="chart-header">
+                <h2>Daily Consumption Trend</h2>
+                <select id="daily-month-select" class="month-select"></select>
+            </div>
+            <div class="chart-wrap"><canvas id="daily-chart"></canvas></div>
+        </div>
+
+        <!-- Hourly Load Profile -->
+        <div class="chart-section">
+            <h2>Hourly Load Profile</h2>
+            <div class="hourly-stats" id="hourly-stats"></div>
+            <div class="chart-wrap"><canvas id="hourly-chart"></canvas></div>
+        </div>
+
+        <!-- Battery Sizing Analysis -->
+        <div class="chart-section">
+            <div class="chart-header">
+                <h2>Battery Sizing Analysis</h2>
+                <select id="battery-month-select" class="month-select"></select>
+            </div>
+            <div class="chart-wrap"><canvas id="battery-chart"></canvas></div>
+        </div>
+
+        <!-- Day Detail -->
+        <div class="chart-section" id="day-detail">
+            <div class="detail-header">
+                <h2 id="detail-title">Detail</h2>
+                <button class="close-btn" id="close-detail">Close</button>
+            </div>
+            <div class="chart-wrap"><canvas id="detail-chart"></canvas></div>
+        </div>
+    </div>
+
+    <script>
+    (function() {
+        'use strict';
+
+        // ---------------------------------------------------------------
+        // Theme helpers
+        // ---------------------------------------------------------------
+
+        function getThemeColors() {
+            const s = getComputedStyle(document.documentElement);
+            const v = (name) => s.getPropertyValue(name).trim();
+            return {
+                bg: v('--bg'),
+                text: v('--text'),
+                textSecondary: v('--text-secondary'),
+                cardBg: v('--card-bg'),
+                chartGrid: v('--chart-grid'),
+                chartText: v('--chart-text'),
+                weekdayBar: v('--weekday-bar'),
+                weekendBar: v('--weekend-bar'),
+                freeWindow: v('--free-window'),
+                paidWindow: v('--paid-window'),
+                avgLine: v('--avg-line'),
+                p95Line: v('--p95-line'),
+                freeStack: v('--free-stack'),
+                paidStack: v('--paid-stack'),
+                tooltipBg: v('--tooltip-bg'),
+                tooltipText: v('--tooltip-text'),
+                tooltipBorder: v('--tooltip-border'),
+                tempLine: v('--temp-line'),
+                costLine: v('--cost-line'),
+            };
+        }
+
+        function applyChartDefaults() {
+            const c = getThemeColors();
+            Chart.defaults.color = c.chartText;
+            Chart.defaults.borderColor = c.chartGrid;
+            Chart.defaults.plugins.legend.labels.color = c.chartText;
+            Chart.defaults.plugins.tooltip.backgroundColor = c.tooltipBg;
+            Chart.defaults.plugins.tooltip.titleColor = c.tooltipText;
+            Chart.defaults.plugins.tooltip.bodyColor = c.tooltipText;
+            Chart.defaults.plugins.tooltip.borderColor = c.tooltipBorder;
+            Chart.defaults.plugins.tooltip.borderWidth = 1;
+            Chart.defaults.plugins.tooltip.cornerRadius = 8;
+            Chart.defaults.plugins.tooltip.padding = 12;
+        }
+
+        function isWeekend(dateStr) {
+            const d = new Date(dateStr + 'T12:00:00');
+            const day = d.getDay();
+            return day === 0 || day === 6;
+        }
+
+        // ---------------------------------------------------------------
+        // Chart instances
+        // ---------------------------------------------------------------
+
+        let dailyChart = null;
+        let hourlyChart = null;
+        let batteryChart = null;
+        let detailChart = null;
+
+        // Store battery analysis data for TOU windows
+        let batteryData = null;
+
+        // Store full datasets for month filtering
+        let allDailyData = null;
+        let allWeatherDaily = null;
+        let allCostDaily = null;
+        let allBatteryData = null;
+
+        // ---------------------------------------------------------------
+        // Month filtering helpers
+        // ---------------------------------------------------------------
+
+        function getMonthsFromDates(dates) {
+            const months = new Set();
+            dates.forEach(d => months.add(d.substring(0, 7)));
+            return Array.from(months).sort();
+        }
+
+        function getMonthLabel(ym) {
+            const [y, m] = ym.split('-');
+            const date = new Date(parseInt(y), parseInt(m) - 1, 1);
+            return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+        }
+
+        function populateMonthSelect(selectId, months, onChange) {
+            const sel = document.getElementById(selectId);
+            sel.innerHTML = '';
+
+            // "All" option
+            const allOpt = document.createElement('option');
+            allOpt.value = 'all';
+            allOpt.textContent = 'All Months';
+            sel.appendChild(allOpt);
+
+            months.forEach(m => {
+                const opt = document.createElement('option');
+                opt.value = m;
+                opt.textContent = getMonthLabel(m);
+                sel.appendChild(opt);
+            });
+
+            // Default to current month if it exists, otherwise latest
+            const now = new Date();
+            const currentMonth = now.getFullYear() + '-' + String(now.getMonth() + 1).padStart(2, '0');
+            if (months.includes(currentMonth)) {
+                sel.value = currentMonth;
+            } else if (months.length > 0) {
+                sel.value = months[months.length - 1];
+            }
+
+            sel.addEventListener('change', onChange);
+        }
+
+        function filterByMonth(data, month, dateKey) {
+            dateKey = dateKey || 'date';
+            if (!month || month === 'all') return data;
+            return data.filter(d => d[dateKey].startsWith(month));
+        }
+
+        // ---------------------------------------------------------------
+        // Error handling
+        // ---------------------------------------------------------------
+
+        function showError(msg) {
+            const banner = document.getElementById('error-banner');
+            banner.textContent = msg;
+            banner.style.display = 'block';
+        }
+
+        async function fetchJSON(url) {
+            const resp = await fetch(url);
+            if (!resp.ok) throw new Error(`${url}: ${resp.status} ${resp.statusText}`);
+            return resp.json();
+        }
+
+        // ---------------------------------------------------------------
+        // Summary Cards
+        // ---------------------------------------------------------------
+
+        function renderSummary(summary, battery, costSummary) {
+            document.getElementById('days-collected').innerHTML =
+                summary.days_collected + '<span class="card-unit">days</span>';
+            const pct = Math.min(100, Math.round((summary.days_collected / 365) * 100));
+            document.getElementById('days-progress').style.width = pct + '%';
+            document.getElementById('days-subtitle').textContent =
+                pct + '% of a full year';
+
+            document.getElementById('avg-daily').innerHTML =
+                summary.avg_daily_kwh + '<span class="card-unit">kWh</span>';
+            document.getElementById('avg-daily-subtitle').textContent =
+                summary.date_range[0] + ' to ' + summary.date_range[1];
+
+            document.getElementById('peak-daily').innerHTML =
+                summary.max_daily_kwh + '<span class="card-unit">kWh</span>';
+
+            document.getElementById('battery-size').innerHTML =
+                battery.p95_paid_kwh + '<span class="card-unit">kWh</span>';
+
+            if (costSummary && costSummary.avg_daily_cost) {
+                document.getElementById('avg-cost').innerHTML =
+                    '$' + costSummary.avg_daily_cost.toFixed(2);
+                document.getElementById('avg-cost-subtitle').textContent =
+                    '$' + costSummary.current_rate.toFixed(4) + '/kWh';
+
+                document.getElementById('total-cost').innerHTML =
+                    '$' + costSummary.total_cost.toFixed(2);
+                document.getElementById('total-cost-subtitle').textContent =
+                    costSummary.current_provider || '';
+            }
+        }
+
+        // ---------------------------------------------------------------
+        // Chart 1: Daily Consumption Trend
+        // ---------------------------------------------------------------
+
+        // Cost data stored for tooltip access
+        let costByDate = {};
+
+        function renderDailyChart(data, weatherDaily, costDaily) {
+            if (dailyChart) { dailyChart.destroy(); dailyChart = null; }
+            const c = getThemeColors();
+            const labels = data.map(d => d.date);
+            const values = data.map(d => d.total_kwh);
+            const colors = data.map(d => isWeekend(d.date) ? c.weekendBar : c.weekdayBar);
+
+            const avg = values.reduce((a, b) => a + b, 0) / values.length;
+
+            // Build weather lookup by date
+            const weatherByDate = {};
+            (weatherDaily || []).forEach(w => { weatherByDate[w.date] = w; });
+            const highTemps = labels.map(d => weatherByDate[d] ? weatherByDate[d].high_f : null);
+
+            // Build cost lookup by date
+            costByDate = {};
+            (costDaily || []).forEach(c => { costByDate[c.date] = c; });
+            const costValues = labels.map(d => costByDate[d] ? costByDate[d].daily_cost : null);
+            const hasCost = costDaily && costDaily.length > 0;
+
+            const datasets = [{
+                label: 'Daily kWh',
+                data: values,
+                backgroundColor: colors,
+                borderRadius: 3,
+                borderSkipped: false,
+                yAxisID: 'y',
+            }];
+
+            // Add cost line
+            if (hasCost) {
+                datasets.push({
+                    label: 'Daily Cost ($)',
+                    data: costValues,
+                    type: 'line',
+                    yAxisID: 'yCost',
+                    borderColor: c.costLine,
+                    backgroundColor: c.costLine + '20',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                    fill: false,
+                    spanGaps: true,
+                    order: 0,
+                });
+            }
+
+            // Add temperature line if we have weather data
+            if (weatherDaily && weatherDaily.length > 0) {
+                datasets.push({
+                    label: 'High Temp (°F)',
+                    data: highTemps,
+                    type: 'line',
+                    yAxisID: 'yTemp',
+                    borderColor: c.tempLine,
+                    backgroundColor: c.tempLine + '20',
+                    borderWidth: 2,
+                    tension: 0.3,
+                    pointRadius: 2,
+                    pointHoverRadius: 5,
+                    fill: false,
+                    spanGaps: true,
+                    order: 0,
+                });
+            }
+
+            const ctx = document.getElementById('daily-chart').getContext('2d');
+            dailyChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    onClick: (evt, elements) => {
+                        if (elements.length > 0) {
+                            const idx = elements[0].index;
+                            const date = data[idx].date;
+                            loadDayDetail(date);
+                        }
+                    },
+                    scales: {
+                        x: {
+                            grid: { color: c.chartGrid },
+                            ticks: {
+                                color: c.chartText,
+                                maxRotation: 45,
+                                autoSkip: true,
+                                maxTicksLimit: 60,
+                            }
+                        },
+                        y: {
+                            grid: { color: c.chartGrid },
+                            ticks: { color: c.chartText },
+                            title: { display: true, text: 'kWh', color: c.chartText },
+                            beginAtZero: true,
+                        },
+                        yCost: {
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: {
+                                color: c.costLine,
+                                callback: (v) => '$' + v.toFixed(0),
+                            },
+                            title: { display: true, text: 'Cost ($)', color: c.costLine },
+                            display: hasCost,
+                        },
+                        yTemp: {
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: c.tempLine },
+                            title: { display: true, text: '°F', color: c.tempLine },
+                            display: weatherDaily && weatherDaily.length > 0,
+                        }
+                    },
+                    plugins: {
+                        legend: {
+                            display: true,
+                            labels: {
+                                color: c.chartText,
+                                generateLabels: function(chart) {
+                                    const legendItems = [
+                                        { text: 'Weekday', fillStyle: c.weekdayBar, strokeStyle: c.weekdayBar, lineWidth: 0 },
+                                        { text: 'Weekend', fillStyle: c.weekendBar, strokeStyle: c.weekendBar, lineWidth: 0 },
+                                    ];
+                                    chart.data.datasets.forEach(ds => {
+                                        if (ds.yAxisID === 'yCost') {
+                                            legendItems.push({ text: 'Daily Cost ($)', fillStyle: 'transparent', strokeStyle: c.costLine, lineWidth: 2 });
+                                        }
+                                        if (ds.yAxisID === 'yTemp') {
+                                            legendItems.push({ text: 'High Temp (°F)', fillStyle: 'transparent', strokeStyle: c.tempLine, lineWidth: 2 });
+                                        }
+                                    });
+                                    return legendItems;
+                                }
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                title: (items) => {
+                                    const d = items[0].label;
+                                    const date = new Date(d + 'T12:00:00');
+                                    const dayName = date.toLocaleDateString('en-US', { weekday: 'long' });
+                                    return dayName + ', ' + d;
+                                },
+                                label: (item) => {
+                                    if (item.dataset.yAxisID === 'yTemp') {
+                                        return 'High: ' + item.parsed.y.toFixed(1) + ' °F';
+                                    }
+                                    if (item.dataset.yAxisID === 'yCost') {
+                                        return 'Cost: $' + item.parsed.y.toFixed(2);
+                                    }
+                                    return item.parsed.y.toFixed(2) + ' kWh';
+                                }
+                            }
+                        },
+                        annotation: {
+                            annotations: {
+                                avgLine: {
+                                    type: 'line',
+                                    yMin: avg,
+                                    yMax: avg,
+                                    borderColor: c.avgLine,
+                                    borderWidth: 2,
+                                    borderDash: [6, 4],
+                                    label: {
+                                        display: true,
+                                        content: 'Avg: ' + avg.toFixed(1) + ' kWh',
+                                        position: 'start',
+                                        backgroundColor: c.avgLine,
+                                        color: '#fff',
+                                        font: { size: 12, weight: '600' },
+                                        padding: { top: 4, bottom: 4, left: 8, right: 8 },
+                                        borderRadius: 4,
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // Chart 2: Hourly Load Profile
+        // ---------------------------------------------------------------
+
+        function renderHourlyChart(data) {
+            const c = getThemeColors();
+
+            // Organize data by day_type
+            const weekdayData = new Array(24).fill(0);
+            const weekendData = new Array(24).fill(0);
+
+            data.forEach(d => {
+                const hour = parseInt(d.hour_of_day, 10);
+                if (d.day_type === 'weekday') weekdayData[hour] = d.avg_kwh;
+                else weekendData[hour] = d.avg_kwh;
+            });
+
+            const labels = Array.from({ length: 24 }, (_, i) => i.toString().padStart(2, '0') + ':00');
+
+            // Compute average daily usage in free vs paid windows
+            if (batteryData) {
+                const fs = batteryData.free_window.start;
+                const fe = batteryData.free_window.end;
+                // Average across weekday+weekend (weighted would be better, but this is a quick summary)
+                const allHourly = new Array(24).fill(0);
+                const counts = new Array(24).fill(0);
+                data.forEach(d => {
+                    const hour = parseInt(d.hour_of_day, 10);
+                    allHourly[hour] += d.avg_kwh * d.sample_count;
+                    counts[hour] += d.sample_count;
+                });
+                const avgHourly = allHourly.map((v, i) => counts[i] > 0 ? v / counts[i] : 0);
+
+                let freeSum = 0, paidSum = 0;
+                for (let h = 0; h < 24; h++) {
+                    const hourKwh = avgHourly[h];
+                    const isFree = fs > fe
+                        ? (h >= fs || h < fe)
+                        : (h >= fs && h < fe);
+                    if (isFree) freeSum += hourKwh;
+                    else paidSum += hourKwh;
+                }
+
+                document.getElementById('hourly-stats').innerHTML =
+                    '<div class="hourly-stat free">' +
+                        '<span class="hourly-stat-label">Avg Daily Free Window</span>' +
+                        '<span class="hourly-stat-value">' + freeSum.toFixed(1) + ' kWh</span>' +
+                    '</div>' +
+                    '<div class="hourly-stat paid">' +
+                        '<span class="hourly-stat-label">Avg Daily Paid Window</span>' +
+                        '<span class="hourly-stat-value">' + paidSum.toFixed(1) + ' kWh</span>' +
+                    '</div>';
+            }
+
+            // Build TOU shading annotations
+            const touAnnotations = {};
+            if (batteryData) {
+                const freeStart = batteryData.free_window.start;
+                const freeEnd = batteryData.free_window.end;
+
+                // Free window shading (e.g., 21-23, 0-5)
+                if (freeStart > freeEnd) {
+                    // Wraps midnight: two boxes
+                    touAnnotations.freeEvening = {
+                        type: 'box',
+                        xMin: freeStart - 0.5,
+                        xMax: 23.5,
+                        backgroundColor: c.freeWindow,
+                        borderWidth: 0,
+                        label: {
+                            display: true,
+                            content: 'Free Window',
+                            position: { x: 'center', y: 'start' },
+                            color: '#22c55e',
+                            font: { size: 11, weight: '600' },
+                        }
+                    };
+                    touAnnotations.freeMorning = {
+                        type: 'box',
+                        xMin: -0.5,
+                        xMax: freeEnd - 0.5,
+                        backgroundColor: c.freeWindow,
+                        borderWidth: 0,
+                    };
+                    touAnnotations.paidWindow = {
+                        type: 'box',
+                        xMin: freeEnd - 0.5,
+                        xMax: freeStart - 0.5,
+                        backgroundColor: c.paidWindow,
+                        borderWidth: 0,
+                        label: {
+                            display: true,
+                            content: 'Paid Window',
+                            position: { x: 'center', y: 'start' },
+                            color: '#f59e0b',
+                            font: { size: 11, weight: '600' },
+                        }
+                    };
+                } else {
+                    touAnnotations.freeWindow = {
+                        type: 'box',
+                        xMin: freeStart - 0.5,
+                        xMax: freeEnd - 0.5,
+                        backgroundColor: c.freeWindow,
+                        borderWidth: 0,
+                        label: {
+                            display: true,
+                            content: 'Free Window',
+                            position: { x: 'center', y: 'start' },
+                            color: '#22c55e',
+                            font: { size: 11, weight: '600' },
+                        }
+                    };
+                    touAnnotations.paidWindow1 = {
+                        type: 'box',
+                        xMin: -0.5,
+                        xMax: freeStart - 0.5,
+                        backgroundColor: c.paidWindow,
+                        borderWidth: 0,
+                    };
+                    touAnnotations.paidWindow2 = {
+                        type: 'box',
+                        xMin: freeEnd - 0.5,
+                        xMax: 23.5,
+                        backgroundColor: c.paidWindow,
+                        borderWidth: 0,
+                        label: {
+                            display: true,
+                            content: 'Paid Window',
+                            position: { x: 'center', y: 'start' },
+                            color: '#f59e0b',
+                            font: { size: 11, weight: '600' },
+                        }
+                    };
+                }
+            }
+
+            const ctx = document.getElementById('hourly-chart').getContext('2d');
+            hourlyChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Weekday Avg',
+                            data: weekdayData,
+                            borderColor: c.weekdayBar,
+                            backgroundColor: c.weekdayBar + '22',
+                            borderWidth: 2.5,
+                            tension: 0.3,
+                            pointRadius: 3,
+                            pointHoverRadius: 6,
+                            fill: false,
+                        },
+                        {
+                            label: 'Weekend Avg',
+                            data: weekendData,
+                            borderColor: c.weekendBar,
+                            backgroundColor: c.weekendBar + '22',
+                            borderWidth: 2.5,
+                            borderDash: [8, 4],
+                            tension: 0.3,
+                            pointRadius: 3,
+                            pointHoverRadius: 6,
+                            fill: false,
+                        },
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: {
+                            grid: { color: c.chartGrid },
+                            ticks: { color: c.chartText },
+                        },
+                        y: {
+                            grid: { color: c.chartGrid },
+                            ticks: { color: c.chartText },
+                            title: { display: true, text: 'Avg kWh per Interval', color: c.chartText },
+                            beginAtZero: true,
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: c.chartText } },
+                        tooltip: {
+                            callbacks: {
+                                label: (item) => item.dataset.label + ': ' + item.parsed.y.toFixed(4) + ' kWh'
+                            }
+                        },
+                        annotation: {
+                            annotations: touAnnotations,
+                        }
+                    }
+                }
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // Chart 3: Battery Sizing Analysis
+        // ---------------------------------------------------------------
+
+        function renderBatteryChart(data, monthFilter) {
+            if (batteryChart) { batteryChart.destroy(); batteryChart = null; }
+            const c = getThemeColors();
+            const daily = filterByMonth(data.daily_breakdown, monthFilter);
+            const labels = daily.map(d => d.date);
+            const freeValues = daily.map(d => d.free_kwh);
+            const paidValues = daily.map(d => d.paid_kwh);
+
+            const ctx = document.getElementById('battery-chart').getContext('2d');
+            batteryChart = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Free Window kWh',
+                            data: freeValues,
+                            backgroundColor: c.freeStack + 'aa',
+                            borderRadius: 0,
+                            borderSkipped: false,
+                        },
+                        {
+                            label: 'Paid Window kWh',
+                            data: paidValues,
+                            backgroundColor: c.paidStack + 'aa',
+                            borderRadius: { topLeft: 3, topRight: 3 },
+                            borderSkipped: false,
+                        },
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: {
+                            stacked: true,
+                            grid: { color: c.chartGrid },
+                            ticks: {
+                                color: c.chartText,
+                                maxRotation: 45,
+                                autoSkip: true,
+                                maxTicksLimit: 60,
+                            }
+                        },
+                        y: {
+                            stacked: true,
+                            grid: { color: c.chartGrid },
+                            ticks: { color: c.chartText },
+                            title: { display: true, text: 'kWh', color: c.chartText },
+                            beginAtZero: true,
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: c.chartText } },
+                        tooltip: {
+                            callbacks: {
+                                label: (item) => item.dataset.label + ': ' + item.parsed.y.toFixed(2) + ' kWh'
+                            }
+                        },
+                        annotation: {
+                            annotations: {
+                                p95Line: {
+                                    type: 'line',
+                                    yMin: data.p95_paid_kwh,
+                                    yMax: data.p95_paid_kwh,
+                                    borderColor: c.p95Line,
+                                    borderWidth: 2.5,
+                                    borderDash: [8, 4],
+                                    label: {
+                                        display: true,
+                                        content: 'Recommended Battery: ' + data.p95_paid_kwh + ' kWh',
+                                        position: 'start',
+                                        backgroundColor: c.p95Line,
+                                        color: '#fff',
+                                        font: { size: 13, weight: '700' },
+                                        padding: { top: 6, bottom: 6, left: 10, right: 10 },
+                                        borderRadius: 4,
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // Chart 4: Day Detail
+        // ---------------------------------------------------------------
+
+        async function loadDayDetail(date) {
+            const section = document.getElementById('day-detail');
+            const titleEl = document.getElementById('detail-title');
+            titleEl.textContent = 'Detail: ' + date;
+
+            // Show the section early
+            section.classList.add('visible');
+
+            try {
+                const [intervals, weatherHourly] = await Promise.all([
+                    fetchJSON('/api/intervals?date=' + date),
+                    fetchJSON('/api/weather/hourly?date=' + date).catch(() => []),
+                ]);
+                renderDetailChart(intervals, date, weatherHourly);
+                section.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            } catch (err) {
+                console.error('Failed to load day detail:', err);
+                showError('Failed to load detail for ' + date + ': ' + err.message);
+            }
+        }
+
+        function renderDetailChart(intervals, date, weatherHourly) {
+            const c = getThemeColors();
+
+            if (detailChart) {
+                detailChart.destroy();
+                detailChart = null;
+            }
+
+            // Aggregate 15-min intervals into hourly buckets
+            const hourlyKwh = new Array(24).fill(0);
+            intervals.forEach(d => {
+                const hour = parseInt(d.interval_start.substring(11, 13), 10);
+                hourlyKwh[hour] += d.consumption_kwh;
+            });
+            const labels = hourlyKwh.map((_, h) => String(h).padStart(2, '0') + ':00');
+            const values = hourlyKwh.map(v => Math.round(v * 10000) / 10000);
+
+            const tempByHour = {};
+            (weatherHourly || []).forEach(w => { tempByHour[w.hour] = w.temperature_f; });
+            const hasWeather = weatherHourly && weatherHourly.length > 0;
+            const tempData = hourlyKwh.map((_, h) => {
+                return tempByHour[h] !== undefined ? tempByHour[h] : null;
+            });
+
+            // Build TOU shading for hourly chart (24 hours)
+            const touAnnotations = {};
+            if (batteryData) {
+                const freeStart = batteryData.free_window.start;
+                const freeEnd = batteryData.free_window.end;
+
+                if (freeStart > freeEnd) {
+                    touAnnotations.freeEvening = {
+                        type: 'box',
+                        xMin: freeStart - 0.5,
+                        xMax: 23.5,
+                        backgroundColor: c.freeWindow,
+                        borderWidth: 0,
+                        label: {
+                            display: true,
+                            content: 'Free',
+                            position: { x: 'center', y: 'start' },
+                            color: '#22c55e',
+                            font: { size: 11, weight: '600' },
+                        }
+                    };
+                    touAnnotations.freeMorning = {
+                        type: 'box',
+                        xMin: -0.5,
+                        xMax: freeEnd - 0.5,
+                        backgroundColor: c.freeWindow,
+                        borderWidth: 0,
+                    };
+                    touAnnotations.paidWindow = {
+                        type: 'box',
+                        xMin: freeEnd - 0.5,
+                        xMax: freeStart - 0.5,
+                        backgroundColor: c.paidWindow,
+                        borderWidth: 0,
+                        label: {
+                            display: true,
+                            content: 'Paid',
+                            position: { x: 'center', y: 'start' },
+                            color: '#f59e0b',
+                            font: { size: 11, weight: '600' },
+                        }
+                    };
+                }
+            }
+
+            const datasets = [{
+                label: 'kWh per hour',
+                data: values,
+                yAxisID: 'y',
+                borderColor: c.weekdayBar,
+                backgroundColor: c.weekdayBar + '20',
+                borderWidth: 2,
+                tension: 0.3,
+                pointRadius: 2,
+                pointHoverRadius: 5,
+                fill: true,
+            }];
+
+            if (hasWeather) {
+                datasets.push({
+                    label: 'Temperature (°F)',
+                    data: tempData,
+                    yAxisID: 'yTemp',
+                    borderColor: c.tempLine,
+                    borderWidth: 1.5,
+                    tension: 0.3,
+                    pointRadius: 0,
+                    pointHoverRadius: 4,
+                    fill: false,
+                    spanGaps: true,
+                });
+            }
+
+            const ctx = document.getElementById('detail-chart').getContext('2d');
+            detailChart = new Chart(ctx, {
+                type: 'line',
+                data: { labels: labels, datasets: datasets },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'index', intersect: false },
+                    scales: {
+                        x: {
+                            grid: { color: c.chartGrid },
+                            ticks: {
+                                color: c.chartText,
+                                autoSkip: true,
+                                maxTicksLimit: 24,
+                            }
+                        },
+                        y: {
+                            grid: { color: c.chartGrid },
+                            ticks: { color: c.chartText },
+                            title: { display: true, text: 'kWh', color: c.chartText },
+                            beginAtZero: true,
+                        },
+                        yTemp: {
+                            position: 'right',
+                            grid: { drawOnChartArea: false },
+                            ticks: { color: c.tempLine },
+                            title: { display: true, text: '°F', color: c.tempLine },
+                            display: hasWeather,
+                        }
+                    },
+                    plugins: {
+                        legend: { labels: { color: c.chartText } },
+                        tooltip: {
+                            callbacks: {
+                                label: (item) => {
+                                    if (item.dataset.yAxisID === 'yTemp') {
+                                        return item.parsed.y.toFixed(1) + ' °F';
+                                    }
+                                    return item.parsed.y.toFixed(2) + ' kWh';
+                                }
+                            }
+                        },
+                        annotation: {
+                            annotations: touAnnotations,
+                        }
+                    }
+                }
+            });
+        }
+
+        // ---------------------------------------------------------------
+        // Close detail
+        // ---------------------------------------------------------------
+
+        document.getElementById('close-detail').addEventListener('click', () => {
+            const section = document.getElementById('day-detail');
+            section.classList.remove('visible');
+            if (detailChart) {
+                detailChart.destroy();
+                detailChart = null;
+            }
+        });
+
+        // ---------------------------------------------------------------
+        // Theme change listener
+        // ---------------------------------------------------------------
+
+        function updateAllChartColors() {
+            applyChartDefaults();
+            const c = getThemeColors();
+
+            [dailyChart, hourlyChart, batteryChart, detailChart].forEach(chart => {
+                if (!chart) return;
+
+                // Update scale colors
+                Object.values(chart.options.scales).forEach(scale => {
+                    scale.grid.color = c.chartGrid;
+                    scale.ticks.color = c.chartText;
+                    if (scale.title) scale.title.color = c.chartText;
+                });
+
+                // Update legend
+                if (chart.options.plugins.legend && chart.options.plugins.legend.labels) {
+                    chart.options.plugins.legend.labels.color = c.chartText;
+                }
+
+                chart.update('none');
+            });
+
+            // Rebuild daily chart bar colors + overlay lines
+            if (dailyChart && dailyChart.data.labels) {
+                const barColors = dailyChart.data.labels.map(d =>
+                    isWeekend(d) ? c.weekendBar : c.weekdayBar
+                );
+                dailyChart.data.datasets[0].backgroundColor = barColors;
+                dailyChart.data.datasets.forEach(ds => {
+                    if (ds.yAxisID === 'yCost') ds.borderColor = c.costLine;
+                    if (ds.yAxisID === 'yTemp') ds.borderColor = c.tempLine;
+                });
+                if (dailyChart.options.scales.yCost) {
+                    dailyChart.options.scales.yCost.ticks.color = c.costLine;
+                    dailyChart.options.scales.yCost.title.color = c.costLine;
+                }
+                if (dailyChart.options.scales.yTemp) {
+                    dailyChart.options.scales.yTemp.ticks.color = c.tempLine;
+                    dailyChart.options.scales.yTemp.title.color = c.tempLine;
+                }
+
+                dailyChart.options.plugins.legend.labels.generateLabels = function(chart) {
+                    const items = [
+                        { text: 'Weekday', fillStyle: c.weekdayBar, strokeStyle: c.weekdayBar, lineWidth: 0 },
+                        { text: 'Weekend', fillStyle: c.weekendBar, strokeStyle: c.weekendBar, lineWidth: 0 },
+                    ];
+                    chart.data.datasets.forEach(ds => {
+                        if (ds.yAxisID === 'yCost') items.push({ text: 'Daily Cost ($)', fillStyle: 'transparent', strokeStyle: c.costLine, lineWidth: 2 });
+                        if (ds.yAxisID === 'yTemp') items.push({ text: 'High Temp (°F)', fillStyle: 'transparent', strokeStyle: c.tempLine, lineWidth: 2 });
+                    });
+                    return items;
+                };
+
+                dailyChart.update('none');
+            }
+
+            // Update hourly chart line colors
+            if (hourlyChart && hourlyChart.data.datasets.length >= 2) {
+                hourlyChart.data.datasets[0].borderColor = c.weekdayBar;
+                hourlyChart.data.datasets[1].borderColor = c.weekendBar;
+                hourlyChart.update('none');
+            }
+
+            // Update battery chart stack colors
+            if (batteryChart && batteryChart.data.datasets.length >= 2) {
+                batteryChart.data.datasets[0].backgroundColor = c.freeStack + 'aa';
+                batteryChart.data.datasets[1].backgroundColor = c.paidStack + 'aa';
+                batteryChart.update('none');
+            }
+
+            // Update detail chart line color + temp line
+            if (detailChart && detailChart.data.datasets.length >= 1) {
+                detailChart.data.datasets[0].borderColor = c.weekdayBar;
+                detailChart.data.datasets[0].backgroundColor = c.weekdayBar + '20';
+                if (detailChart.data.datasets.length > 1) {
+                    detailChart.data.datasets[1].borderColor = c.tempLine;
+                }
+                if (detailChart.options.scales.yTemp) {
+                    detailChart.options.scales.yTemp.ticks.color = c.tempLine;
+                    detailChart.options.scales.yTemp.title.color = c.tempLine;
+                }
+                detailChart.update('none');
+            }
+        }
+
+        const darkModeQuery = window.matchMedia('(prefers-color-scheme: dark)');
+        darkModeQuery.addEventListener('change', () => {
+            // Small delay to let CSS variables update
+            requestAnimationFrame(() => updateAllChartColors());
+        });
+
+        // ---------------------------------------------------------------
+        // Init
+        // ---------------------------------------------------------------
+
+        document.addEventListener('DOMContentLoaded', async () => {
+            applyChartDefaults();
+
+            try {
+                const [summary, daily, hourlyProfile, battery, weatherDaily, costDaily, costSummary] = await Promise.all([
+                    fetchJSON('/api/summary'),
+                    fetchJSON('/api/daily'),
+                    fetchJSON('/api/hourly-profile'),
+                    fetchJSON('/api/battery-analysis'),
+                    fetchJSON('/api/weather/daily').catch(() => []),
+                    fetchJSON('/api/cost/daily').catch(() => []),
+                    fetchJSON('/api/cost/summary').catch(() => null),
+                ]);
+
+                batteryData = battery;
+
+                // Store full datasets for filtering
+                allDailyData = daily;
+                allWeatherDaily = weatherDaily;
+                allCostDaily = costDaily;
+                allBatteryData = battery;
+
+                // Build month list from daily data
+                const months = getMonthsFromDates(daily.map(d => d.date));
+
+                // Populate month selectors
+                populateMonthSelect('daily-month-select', months, () => {
+                    const m = document.getElementById('daily-month-select').value;
+                    renderDailyChart(
+                        filterByMonth(allDailyData, m),
+                        filterByMonth(allWeatherDaily, m),
+                        filterByMonth(allCostDaily, m)
+                    );
+                });
+
+                populateMonthSelect('battery-month-select', months, () => {
+                    const m = document.getElementById('battery-month-select').value;
+                    renderBatteryChart(allBatteryData, m);
+                });
+
+                // Initial render with default month selection
+                const dailyMonth = document.getElementById('daily-month-select').value;
+                const batteryMonth = document.getElementById('battery-month-select').value;
+
+                renderSummary(summary, battery, costSummary);
+                renderDailyChart(
+                    filterByMonth(daily, dailyMonth),
+                    filterByMonth(weatherDaily, dailyMonth),
+                    filterByMonth(costDaily, dailyMonth)
+                );
+                renderHourlyChart(hourlyProfile);
+                renderBatteryChart(battery, batteryMonth);
+
+            } catch (err) {
+                console.error('Failed to load dashboard data:', err);
+                showError('Failed to load dashboard data. Make sure the API server is running. Error: ' + err.message);
+            }
+        });
+
+    })();
+    </script>
+</body>
+</html>
