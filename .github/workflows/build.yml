@@ -4,13 +4,36 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+  pull_request:
+    branches: [main]
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+
+      - name: Run tests
+        env:
+          SMT_USERNAME: test
+          SMT_PASSWORD: test
+          SMT_ESIID: TEST_ESIID
+          SMT_LATITUDE: "30.0"
+          SMT_LONGITUDE: "-97.0"
+        run: |
+          uv sync --extra dev
+          uv run pytest -v --tb=short
+
   build:
+    needs: test
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     permissions:
       contents: write

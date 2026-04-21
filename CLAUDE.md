@@ -30,6 +30,12 @@ uv run python src/weather.py              # backfill weather for all dates missi
 # Dashboard
 uv run python src/dashboard.py            # serves at http://localhost:8080
 
+# Tests
+uv run pytest                             # run all tests
+uv run pytest -v                          # verbose output
+uv run pytest tests/test_db.py            # run specific module
+uv run pytest --cov=src                   # run with coverage
+
 # Docker
 docker compose up --build                 # runs fetch+import+weather on start, then daily via supercronic
 ```
@@ -71,4 +77,4 @@ Never commit directly to `main`. All changes go through PRs.
 - Energy values in the API response may have quality flag suffixes like `-E` (estimated) or `-A` (actual), which are stripped from the kWh value and stored separately.
 - TOU windows (`SMT_FREE_START`/`SMT_FREE_END`) are for scenario analysis ("what if I switch to a TOU plan?"), not tied to the provider. Providers just track flat-rate billing.
 - Weather data uses `timezone=America/Chicago` to return local time, not UTC.
-- No test suite or linter is configured.
+- Tests use pytest with in-memory SQLite fixtures. Run with `uv run pytest -v`.
