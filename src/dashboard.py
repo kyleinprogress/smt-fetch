@@ -9,6 +9,8 @@ Usage:
 import importlib.metadata
 import logging
 import os
+import re
+import time
 from pathlib import Path
 
 from aiohttp import web
@@ -40,12 +42,23 @@ FREE_END = int(os.environ.get("SMT_FREE_END", "6"))
 # Helpers
 # ---------------------------------------------------------------------------
 
+_DATE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+def _validate_date(value):
+    """Return True if value matches YYYY-MM-DD format."""
+    return bool(_DATE_RE.match(value))
+
+
 def rows_to_dicts(rows):
     return [dict(r) for r in rows]
 
 
 def json_response(data):
     return web.json_response(data)
+
+
+_last_report_time = 0.0
+_REPORT_COOLDOWN = 10  # seconds
 
 
 # ---------------------------------------------------------------------------
@@ -125,6 +138,11 @@ async def api_summary(request):
 async def api_daily(request):
     date_from = request.query.get("from")
     date_to = request.query.get("to")
+
+    if date_from and not _validate_date(date_from):
+        return web.json_response({"error": "Invalid 'from' date format, use YYYY-MM-DD"}, status=400)
+    if date_to and not _validate_date(date_to):
+        return web.json_response({"error": "Invalid 'to' date format, use YYYY-MM-DD"}, status=400)
 
     conn = get_connection()
     try:
@@ -209,6 +227,8 @@ async def api_intervals(request):
     date = request.query.get("date")
     if not date:
         return web.json_response({"error": "date query parameter required"}, status=400)
+    if not _validate_date(date):
+        return web.json_response({"error": "Invalid date format, use YYYY-MM-DD"}, status=400)
 
     conn = get_connection()
     try:
@@ -288,6 +308,11 @@ async def api_weather_daily(request):
     date_from = request.query.get("from")
     date_to = request.query.get("to")
 
+    if date_from and not _validate_date(date_from):
+        return web.json_response({"error": "Invalid 'from' date format, use YYYY-MM-DD"}, status=400)
+    if date_to and not _validate_date(date_to):
+        return web.json_response({"error": "Invalid 'to' date format, use YYYY-MM-DD"}, status=400)
+
     conn = get_connection()
     try:
         sql = """
@@ -319,6 +344,8 @@ async def api_weather_hourly(request):
     date = request.query.get("date")
     if not date:
         return web.json_response({"error": "date query parameter required"}, status=400)
+    if not _validate_date(date):
+        return web.json_response({"error": "Invalid date format, use YYYY-MM-DD"}, status=400)
 
     conn = get_connection()
     try:
@@ -334,13 +361,26 @@ async def api_weather_hourly(request):
 
 
 async def api_report(request):
-    loop = asyncio.get_event_loop()
-    pdf_bytes = await loop.run_in_executor(None, generate_report)
-    return web.Response(
-        body=pdf_bytes,
-        content_type="application/pdf",
-        headers={"Content-Disposition": 'attachment; filename="energy_report.pdf"'},
-    )
+    global _last_report_time
+    now = time.monotonic()
+    if now - _last_report_time < _REPORT_COOLDOWN:
+        return web.json_response(
+            {"error": "Report generation rate limited. Try again in a few seconds."},
+            status=429,
+        )
+    _last_report_time = now
+
+    try:
+        loop = asyncio.get_event_loop()
+        pdf_bytes = await loop.run_in_executor(None, generate_report)
+        return web.Response(
+            body=pdf_bytes,
+            content_type="application/pdf",
+            headers={"Content-Disposition": 'attachment; filename="energy_report.pdf"'},
+        )
+    except Exception as e:
+        log.error(f"Report generation failed: {e}")
+        return web.json_response({"error": "Report generation failed"}, status=500)
 
 
 # ---------------------------------------------------------------------------
