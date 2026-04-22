@@ -3,23 +3,22 @@ services:
     image: ghcr.io/kyleinprogress/smt-fetch:latest
     container_name: smt-fetch
     restart: unless-stopped
-
+    env_file:
+      - .env
     environment:
-      PUID: ${PUID:-1000}
-      PGID: ${PGID:-1000}
-      SMT_USERNAME: ${SMT_USERNAME}
-      SMT_PASSWORD: ${SMT_PASSWORD}
-      SMT_ESIID: ${SMT_ESIID}
-      SMT_DAYS_BACK: ${SMT_DAYS_BACK:-1}
-      SMT_LOG_LEVEL: ${SMT_LOG_LEVEL:-INFO}
-      SMT_LATITUDE: ${SMT_LATITUDE}
-      SMT_LONGITUDE: ${SMT_LONGITUDE}
-      SMT_OUTPUT_DIR: /data/csv
-      SMT_DB_PATH: /data/smt_energy.db
-
+      - PUID=${PUID}
+      - PGID=${PGID}
+      - SMT_USERNAME=${SMT_USERNAME}
+      - SMT_PASSWORD=${SMT_PASSWORD}
+      - SMT_ESIID=${SMT_ESIID}
+      - SMT_DAYS_BACK=${SMT_DAYS_BACK:-1}
+      - SMT_LOG_LEVEL=${SMT_LOG_LEVEL:-INFO}
+      - SMT_LATITUDE=${SMT_LATITUDE}
+      - SMT_LONGITUDE=${SMT_LONGITUDE}
+      - SMT_OUTPUT_DIR=/data/csv
+      - SMT_DB_PATH=/data/smt_energy.db
     ports:
       - "8080:8080"
-
     volumes:
       # Persistent storage: CSVs, SQLite DB, and logs all live here.
       # Change the host path to wherever you want data stored.
