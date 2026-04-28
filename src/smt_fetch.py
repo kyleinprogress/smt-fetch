@@ -207,6 +207,7 @@ def save_csv(rows: list[dict], target_date: date) -> Path:
 async def run(days_back: int = DAYS_BACK) -> None:
     force = os.environ.get("SMT_FORCE_REFETCH", "").lower() in ("1", "true", "yes")
     failed_dates = []
+    succeeded = 0
 
     for offset in range(days_back, 0, -1):
         target_date = date.today() - timedelta(days=offset)
@@ -233,10 +234,12 @@ async def run(days_back: int = DAYS_BACK) -> None:
             continue
 
         save_csv(rows, target_date)
+        succeeded += 1
 
     if failed_dates:
         log.warning(f"Failed to fetch data for: {', '.join(d.isoformat() for d in failed_dates)}")
-        sys.exit(1)
+        if not succeeded:
+            sys.exit(1)
 
     log.info("Done.")
 
