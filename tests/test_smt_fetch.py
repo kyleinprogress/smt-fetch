@@ -7,6 +7,7 @@ os.environ.setdefault("SMT_ESIID", "TEST_ESIID")
 os.environ.setdefault("SMT_USERNAME", "test")
 os.environ.setdefault("SMT_PASSWORD", "test")
 
+import smt_fetch
 from smt_fetch import parse_energy_data
 
 
@@ -86,3 +87,66 @@ class TestParseEnergyData:
         assert rows[4]["interval_start"] == "2026-01-15T01:00:00"
         assert rows[4]["interval_end"] == "2026-01-15T01:15:00"
         assert rows[5]["interval_start"] == "2026-01-15T01:15:00"
+
+
+class TestRunExitBehavior:
+    """run() should exit non-zero only when *all* fetches fail (issue #18)."""
+
+    @pytest.fixture
+    def fake_row(self):
+        return {
+            "date": "2026-04-21",
+            "interval_start": "2026-04-21T00:00:00",
+            "interval_end": "2026-04-21T00:15:00",
+            "read_type": "C",
+            "consumption_kwh": 1.0,
+            "quality_flag": "A",
+            "esiid": "TEST_ESIID",
+            "raw_interval_index": 0,
+        }
+
+    @pytest.fixture
+    def isolated_output(self, tmp_path, monkeypatch):
+        monkeypatch.setattr(smt_fetch, "OUTPUT_DIR", tmp_path)
+        return tmp_path
+
+    def _run_with_fetch(self, monkeypatch, fetch_impl, days_back):
+        async def fake_fetch(target_date):
+            return fetch_impl(target_date)
+        monkeypatch.setattr(smt_fetch, "fetch_intervals", fake_fetch)
+        import asyncio
+        asyncio.run(smt_fetch.run(days_back=days_back))
+
+    def test_partial_failure_does_not_exit(self, monkeypatch, isolated_output, fake_row):
+        """Some dates succeed, some fail → exit 0 so downstream pipeline runs."""
+        call_count = {"n": 0}
+
+        def fetch(target_date):
+            call_count["n"] += 1
+            if call_count["n"] == 1:
+                return []  # first date fails
+            return [{**fake_row, "date": target_date.isoformat()}]
+
+        # Should not raise SystemExit
+        self._run_with_fetch(monkeypatch, fetch, days_back=3)
+        # At least one CSV got written
+        csvs = list(isolated_output.glob("smt_interval_*.csv"))
+        assert len(csvs) >= 1
+
+    def test_total_failure_exits_nonzero(self, monkeypatch, isolated_output):
+        """All dates fail → exit 1 so cron / orchestration can alert."""
+        def fetch(target_date):
+            return []
+
+        with pytest.raises(SystemExit) as exc:
+            self._run_with_fetch(monkeypatch, fetch, days_back=2)
+        assert exc.value.code == 1
+
+    def test_all_succeed_no_exit(self, monkeypatch, isolated_output, fake_row):
+        """All dates succeed → no exit, all CSVs written."""
+        def fetch(target_date):
+            return [{**fake_row, "date": target_date.isoformat()}]
+
+        self._run_with_fetch(monkeypatch, fetch, days_back=2)
+        csvs = list(isolated_output.glob("smt_interval_*.csv"))
+        assert len(csvs) == 2
